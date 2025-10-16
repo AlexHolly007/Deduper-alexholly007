@@ -1,0 +1,5 @@
+Make buffer that is autoadjusted from the amount of memory that we have (maybe an input). and will dump after filling up
+	- should be good because soft clipping max can only be a read lead length at max, so can dump duplicates from earlier in the sorted file
+
+look at hamming distances for all the barcodes. if there is a substantial gap between them -> Make UMI's that are 1-2 hamming distance off of an existing UMI be classified as that UMI code
+	-need to verify how often UMI error occurs. if its pretty often, dont want to risk one being classified as another *maybe only 1 distance off. if its not so often, should good.

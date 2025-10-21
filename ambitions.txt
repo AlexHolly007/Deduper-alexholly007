@@ -6,3 +6,11 @@ look at hamming distances for all the barcodes. if there is a substantial gap be
 
 
 SUBTRACT 1 WHEN MAKING 5 PRIME START WHEN NEGETIVE STRANDED
+	-when doing negetive strand we only care about the right side soft clipping.
+	-position +  <#>M  +  <#>S  -  1
+	- if theres more like N you add all of it
+	- should account for deletions (add them in)
+	- should not account for insertions
+
+For foward strand
+	- positon - <#>S  is all.

@@ -3,3 +3,6 @@ Make buffer that is autoadjusted from the amount of memory that we have (maybe a
 
 look at hamming distances for all the barcodes. if there is a substantial gap between them -> Make UMI's that are 1-2 hamming distance off of an existing UMI be classified as that UMI code
 	-need to verify how often UMI error occurs. if its pretty often, dont want to risk one being classified as another *maybe only 1 distance off. if its not so often, should good.
+
+
+SUBTRACT 1 WHEN MAKING 5 PRIME START WHEN NEGETIVE STRANDED

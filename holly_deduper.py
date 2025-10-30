@@ -11,12 +11,14 @@ import re
 def main(sam_file, outfile, umi_file):
     #create set of umi indexes
     valid_umis: set = build_umi_set(umi_file)
-    current_pos = 0
+    dup_dict = {}
+    last_chrom = 0
     
     with open(outfile, 'w') as fo:
 
         for line in sam_file:
             if line[0] == '@':
+                fo.write(line)
                 continue
 
             fields = line.split()
@@ -29,14 +31,49 @@ def main(sam_file, outfile, umi_file):
             #strand
             strand = 1 if int(fields[1]) & 16 else 0
 
+            #chrom
+            chrom = fields[2].strip()
+            if chrom != last_chrom:
+                dup_dict = {}
+                last_chrom = chrom
 
             #R prime start location
             loc_5 = five_prime_start_finder(fields[5].strip(), int(fields[3].strip()), strand)
 
+            #DUP CHECKING with memory contrainsts-------------
+
+            #get last 4 digits of 5 prim location
+            last_four = str(loc_5 % 10000).zfill(4)
+            prefix_pos = 0 #will be 0 when position isnt above 10000 (important for dictionary)
+            if len(str(loc_5)) > 4:
+                #get prefix numbers before those last 4 digits
+                prefix_pos = str(loc_5)[:-4]
             
+            if last_four in dup_dict:
+                dict_entry = dup_dict[last_four]
+                
+                if prefix_pos == dict_entry[0]:
+                    if [umi,strand] in dict_entry[1]:
+                        continue
+                    
+                    #if were at the same position, and its not a dup with umi and strand, write to file and add to dict
+                    else:
+                        dup_dict[last_four][1].append([umi,strand])
+                        #WRITEEEEEEEE
+                        fo.write(line)
+                    
+                
+
+            else:
+                #add to dict and write to file
+                dup_dict[last_four] = [prefix_pos, [[umi, strand]]]
+                #WRITEEEEEEEE
+                fo.write(line)
+
+
             #MEMORY ISSUE SOLUTION::
-            ###     have a dictionary/somthing with indexes 000-999. its value will be a list: [position, [another list. of UMI, STRAND entries]]
-            ###     so if entry is 5 prime location 19101, entry at position 101 is [19, [list of UMI, Strand with that pos] ]
+            ###     have a dictionary/somthing with indexes 000-9999. its value will be a list: [prefix position, [list of [umi,strand] entries ] ]
+            ###     so if entry is 5 prime location 19101, entry at position 9101 is [1, [list of UMI, Strand with that pos] ]
             ###     if when you get to dictionary entry ## (like 01), and the first value in the list isnt what the location is, remove the whole entry for and restart it
             ###     now, the dictionary will clean itself to always stay low memory, but not waste to much time remaking itself. capable for any file size
             

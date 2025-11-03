@@ -12,13 +12,18 @@ def main(sam_file, outfile, umi_file):
     #create set of umi indexes
     valid_umis: set = build_umi_set(umi_file)
     dup_dict = {}
+    total_sum = 0
     last_chrom = 0
-    
+    dup_removed = 0
+    h_line = 0
+    bad_umi = 0
+    count = 0
     with open(outfile, 'w') as fo:
         with open(sam_file, 'r') as fi:
             for line in fi:
                 if line[0] == '@':
                     fo.write(line)
+                    h_line += 1
                     continue
 
                 fields = line.split()
@@ -26,49 +31,42 @@ def main(sam_file, outfile, umi_file):
                 #umi
                 umi = fields[0][-8:]
                 if umi not in valid_umis:
+                    bad_umi = 1
                     continue
 
+
                 #strand
-                strand = 1 if int(fields[1]) & 16 else 0
+                strand = 0 if int(fields[1]) & 16 else 1
 
                 #chrom
                 chrom = fields[2].strip()
                 if chrom != last_chrom:
+                    print(f'{last_chrom} : {count}')
+                    total_sum += count
+                    count = 0
                     dup_dict = {}
                     last_chrom = chrom
 
                 #R prime start location
                 loc_5 = five_prime_start_finder(fields[5].strip(), int(fields[3].strip()), strand)
 
+                pair = (umi, strand, chrom)
                 #DUP CHECKING with memory contrainsts-------------
+                if loc_5 in dup_dict:
+                    if pair in dup_dict[loc_5]:
+                        dup_removed +=1
+                        continue
 
-                #get last 4 digits of 5 prim location
-                last_four = str(loc_5 % 10000).zfill(4)
-                prefix_pos = 0 #will be 0 when position isnt above 10000 (important for dictionary)
-                if len(str(loc_5)) > 4:
-                    #get prefix numbers before those last 4 digits
-                    prefix_pos = str(loc_5)[:-4]
-                
-                if last_four in dup_dict:
-                    dict_entry = dup_dict[last_four]
-                    
-                    if prefix_pos == dict_entry[0]:
-                        if [umi,strand] in dict_entry[1]:
-                            continue
-                        
-                        #if were at the same position, and its not a dup with umi and strand, write to file and add to dict
-                        else:
-                            dup_dict[last_four][1].append([umi,strand])
-                            #WRITEEEEEEEE
-                            fo.write(line)
-                        
-                
+                    else:
+                        fo.write(line)
+                        count += 1
+                        dup_dict[loc_5].add(pair)
 
                 else:
-                    #add to dict and write to file
-                    dup_dict[last_four] = [prefix_pos, [[umi, strand]]]
-                    #WRITEEEEEEEE
                     fo.write(line)
+                    count += 1
+                    dup_dict[loc_5] = {pair}
+                
 
 
                 #MEMORY ISSUE SOLUTION::
@@ -76,7 +74,16 @@ def main(sam_file, outfile, umi_file):
                 ###     so if entry is 5 prime location 19101, entry at position 9101 is [1, [list of UMI, Strand with that pos] ]
                 ###     if when you get to dictionary entry ## (like 01), and the first value in the list isnt what the location is, remove the whole entry for and restart it
                 ###     now, the dictionary will clean itself to always stay low memory, but not waste to much time remaking itself. capable for any file size
-            
+
+                ### UPDATE: does not work, because the reverse strand 5 prime positions will be far ahead of where were looking right now, maybe could work with
+                ###            a different dict for the reverse stranded.
+
+            print(f'{last_chrom} : {count}')
+            total_sum += count
+            print(f'TOTAL READS: {total_sum}')
+            print(f"HLINES: {h_line}")
+            print(f"bad umis: {bad_umi}")
+            print(f"dups removed: {dup_removed}")
 
     return
 
@@ -111,6 +118,7 @@ def five_prime_start_finder(cigar_str : str, given_position: int, strand: int) -
     else: # if - strand
         if first_letter in ['D','N','M']:
             pos += first_num
+    
         
         #remove the first cigar sequence, so we can look at next
         cigar_str = cigar_str[len(str(first_num))+1:]
@@ -130,9 +138,6 @@ def five_prime_start_finder(cigar_str : str, given_position: int, strand: int) -
             #cigar str over
             else:
                 break
-
-        #subtract 1 just cause ig
-        pos -= 1
         
 
     return pos
@@ -170,9 +175,30 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args.file, args.outfile, args.umi)
-    five_prime_start_finder('1S',100, 0)
-    five_prime_start_finder('111S',100, 0)
-    five_prime_start_finder('999M',100, 0)
+    # print(five_prime_start_finder('10S20M5S',110, 1))
+    # print(five_prime_start_finder('10S20M5S',110, 0))
+
+    # print(five_prime_start_finder('23M1290N25M2D18M',110, 0))
+    # print(five_prime_start_finder('23M1290N25M2D18M',110, 1))
+
+    # print(five_prime_start_finder('23M1290I25M2D18M',110, 0))
+    # print(five_prime_start_finder('36M12071N29M1S',110, 1))
+
+    # print(five_prime_start_finder('36M12071N29M5S',110, 0))
+    # Output5: 100
+    # Output6: 135
+
+    # Output7: 110
+    # Output8: 1468
+
+    # Output8: 178
+    # Output9:110
+
+    # Output10:12,251
+
+
 
     #test file run
     #python3 holly_deduper.py -f Testing_Dir/input.sam -o Testing_Dir/test_output.sam -u STL96.txt
+
+    #Real run /usr/bin/time -v python3 holly_deduper.py -f ./C1_SE_uniqAlign_SORTED.sam -o ./C1_SE_uniqAlign_DUPS_REMOVED_OUTPUT.sam -u STL96.txt
